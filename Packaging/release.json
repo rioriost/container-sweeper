@@ -1,0 +1,7 @@
+{
+  "signing_identity": "2D5481D17001587199DC043FE275765456C19F78",
+  "team_id": "23889H77KX",
+  "notary_profile": "container-sweeper-notary",
+  "release_repository": "rioriost/homebrew-cask",
+  "cask_repository": "rioriost/homebrew-cask"
+}
