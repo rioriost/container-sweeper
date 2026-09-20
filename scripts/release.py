@@ -286,7 +286,7 @@ def render_cask(settings, version, digest):
   homepage "https://github.com/{settings.release_repository}"
 
   depends_on arch: :arm64
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
   depends_on formula: "container"
 
   app "Container Sweeper.app"

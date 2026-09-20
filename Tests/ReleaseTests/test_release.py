@@ -201,7 +201,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn('sha256 "' + "a" * 64 + '"', cask)
         self.assertIn('app "Container Sweeper.app"', cask)
         self.assertIn('depends_on formula: "container"', cask)
-        self.assertIn('depends_on macos: ">= :tahoe"', cask)
+        self.assertIn("depends_on macos: :tahoe", cask)
         self.assertIn("dev.containersweeper.schedule.*", cask)
         self.assertIn("dev.containersweeper.job.*", cask)
         self.assertNotIn("no_check", cask)
