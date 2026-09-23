@@ -1,5 +1,7 @@
 # Container Sweeper
 
+<img src="output/imagegen/container-sweeper-icon.png" width="128" alt="Container Sweeper icon">
+
 Apple Container の清掃を日次・週次で設定する、日英対応の macOS アプリです。
 SwiftUI の GUI から公式 `container` CLI を実行し、自動清掃はユーザー単位の
 `launchd` LaunchAgent に登録します。アプリを閉じてもスケジュールは動作します。
@@ -64,6 +66,8 @@ move to `/Applications` or `~/Applications`. This local build is not notarized.
 「自動清掃を有効にする」を選び、「保存して適用」で登録します。
 イメージ清掃は「なし」「タグなし」「参照なし全体」の排他的な選択です。
 日次・週次プロファイルの追加・削除、曜日・時刻・CLI パスの変更ができます。
+ツールバーからプロファイルの追加・操作ができます。⌘N で追加、⌘S で保存して適用、
+⇧⌘R で手動実行の確認を開きます。実行コマンド、CLI 設定、自動清掃の説明は展開して確認できます。
 表示言語はシステム設定に従います（日英対応）。アプリ独自の言語選択はありません。
 以前保存した言語設定は無視します。
 Apple Silicon では Homebrew の `/opt/homebrew/bin/container` を優先して検出します。
@@ -72,6 +76,9 @@ Automatic scheduling and destructive actions are **off by default**. Enable a
 profile, then choose **Save & Apply**. Image cleanup modes are mutually exclusive.
 Use **Run now** for a confirmed manual run using the current GUI settings,
 including unsaved changes. Manual runs work even for disabled schedules.
+Use the toolbar to add profiles or open Profile Actions. Command-N adds a profile,
+Command-S applies settings, and Command-Shift-R opens the manual-run confirmation.
+Command previews, the CLI path, and operational help are expandable sections.
 The interface automatically follows the system language (English or Japanese).
 There is no in-app language selector; previously saved language preferences are ignored.
 
@@ -152,8 +159,8 @@ Jobs do not wake the Mac, run while logged out, or implement their own catch-up
 after shutdown. Different calendar slots can still collide on wake or when an
 earlier job runs long. Group membership is encoded in the job, not guessed from
 the wake-up weekday, so a delayed weekly job retains its intended actions.
-The `launchd status` button shows all saved groups for the selected profile and
-their last exit status.
+The **Profile Actions → Saved Schedule Status** menu shows all saved groups for
+the selected profile and their last exit status.
 
 保存時にヘルパーを Application Support にコピーするため、GUI の移動・終了後も動きます。
 アプリ更新後は開き直し、「保存して適用」でヘルパーも更新してください。登録失敗時は以前の

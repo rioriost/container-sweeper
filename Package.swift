@@ -17,5 +17,6 @@ let package = Package(
             resources: [.process("Resources")]
         ),
         .testTarget(name: "SweeperCoreTests", dependencies: ["SweeperCore"]),
+        .testTarget(name: "ContainerSweeperTests", dependencies: ["ContainerSweeper", "SweeperCore"]),
     ]
 )

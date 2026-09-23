@@ -7,6 +7,12 @@ enum EntryPoint {
     @MainActor
     static func main() {
         let arguments = Array(CommandLine.arguments.dropFirst())
+        #if DEBUG
+        if arguments.first == "--preview-ui" {
+            ContainerSweeperApp.main()
+            return
+        }
+        #endif
         if arguments.isEmpty {
             ContainerSweeperApp.main()
             return
@@ -38,16 +44,37 @@ enum EntryPoint {
 
 struct ContainerSweeperApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
-    @StateObject private var model = AppModel()
+    @StateObject private var model = makeModel()
+
+    private static func makeModel() -> AppModel {
+        #if DEBUG
+        if PreviewSession.isActive {
+            return PreviewSession.makeModel()
+        }
+        #endif
+        return AppModel()
+    }
+
+    private var initialSize: CGSize {
+        #if DEBUG
+        if PreviewSession.isActive && PreviewSession.arguments.contains("--compact") {
+            return CGSize(width: 860, height: 640)
+        }
+        #endif
+        return CGSize(width: 1000, height: 780)
+    }
 
     var body: some Scene {
         WindowGroup("Container Sweeper") {
             ContentView(model: model)
                 .environment(\.locale, model.localizer.locale)
+                #if DEBUG
+                .preferredColorScheme(PreviewSession.colorScheme)
+                #endif
                 .onAppear { delegate.model = model }
         }
-        .defaultSize(width: 1000, height: 800)
-        .commands { CommandGroup(replacing: .newItem) {} }
+        .defaultSize(width: initialSize.width, height: initialSize.height)
+        .commands { SweeperCommands(model: model) }
     }
 }
 
@@ -62,6 +89,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        #if DEBUG
+        if PreviewSession.isActive { return .terminateNow }
+        #endif
         guard let model else { return .terminateNow }
         if model.busy {
             let alert = NSAlert()

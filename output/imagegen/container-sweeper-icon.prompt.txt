@@ -1,0 +1,8 @@
+Use case: logo-brand
+Asset type: production macOS app icon artwork, one square 1024 by 1024 image
+Primary request: Create the app icon for Container Sweeper, a native Mac utility that tidies software containers and reclaims unused storage.
+Subject: A single clean geometric container cube paired with a small broad cleaning brush sweeping across its front lower edge. The cube is the dominant silhouette; the brush makes the cleanup purpose obvious. One small sparkle may suggest cleanliness.
+Style: restrained, polished graphic illustration for a native Mac utility. Simple filled shapes, crisp edges, modest dimensional shading, generous negative space, legible at 32 pixels. No fine bristle lines or tiny technical details.
+Composition: Centered compact symbol occupying about two thirds of the canvas, all important features safely inset from the edges. Square, unmasked, full-bleed opaque background, so the platform can provide its icon shape. No rendered icon frame or device mockup.
+Color: a calm cool background and clear contrast between the container and the cleaning brush; cohesive and uncluttered.
+Constraints: original artwork, no Apple or Docker logos, no letters, no words, no numbers, no watermark, no surrounding scene, no border, no heavy glow or dramatic shadows.

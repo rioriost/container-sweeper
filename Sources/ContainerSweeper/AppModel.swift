@@ -4,6 +4,11 @@ import SwiftUI
 
 @MainActor
 final class AppModel: ObservableObject {
+    enum Confirmation: String, Identifiable {
+        case save, run, remove
+        var id: String { rawValue }
+    }
+
     @Published var configuration: Configuration
     @Published var selection: UUID?
     @Published var savedConfiguration: Configuration?
@@ -12,10 +17,16 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var output: String?
     @Published var loadFailed = false
+    @Published var confirmation: Confirmation?
+    @Published var outputTitleKey = "details"
     let paths = SweeperPaths()
     private var baselineConfiguration: Configuration
+    let localizer: Localizer
+    private let isPreview: Bool
 
     init() {
+        localizer = Localizer()
+        isPreview = false
         do {
             let loaded = try ConfigurationStore().load()
             configuration = loaded
@@ -32,12 +43,39 @@ final class AppModel: ObservableObject {
         }
     }
 
-    var localizer: Localizer { Localizer() }
+    /// In-memory editing for previews and UI tests. External operations are blocked.
+    init(previewConfiguration: Configuration, languageCode: String = "en") {
+        configuration = previewConfiguration
+        baselineConfiguration = previewConfiguration
+        savedConfiguration = previewConfiguration
+        selection = previewConfiguration.profiles.first?.id
+        localizer = Localizer(languageCode: languageCode)
+        isPreview = true
+    }
+
     var dirty: Bool { configuration != savedConfiguration }
     var hasUnappliedEdits: Bool { configuration != baselineConfiguration }
     var selectedProfile: CleanupProfile? { configuration.profiles.first { $0.id == selection } }
+    var canEdit: Bool { !busy && !loadFailed }
+    var canRun: Bool { canEdit && selectedProfile?.hasActions == true }
+    var canSave: Bool { canEdit && (try? configuration.validate()) != nil }
+
+    func requestSave() {
+        guard canSave else { return }
+        if configuration.profiles.contains(where: { $0.enabled && $0.isDestructive }) {
+            confirmation = .save
+        } else {
+            save()
+        }
+    }
+
+    func requestRun() {
+        guard canRun else { return }
+        confirmation = .run
+    }
 
     func addProfile() {
+        guard canEdit, configuration.profiles.count < 32 else { return }
         let profile = CleanupProfile(frequency: .weekly, hour: 4, images: .dangling)
         configuration.profiles.append(profile)
         selection = profile.id
@@ -49,6 +87,7 @@ final class AppModel: ObservableObject {
     }
 
     func browse() {
+        guard allowExternalOperation() else { return }
         let panel = NSOpenPanel()
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
@@ -58,6 +97,8 @@ final class AppModel: ObservableObject {
     }
 
     func save() {
+        guard canSave else { return }
+        guard allowExternalOperation() else { return }
         let snapshot = configuration
         let paths = paths
         guard let executable = Bundle.main.executableURL else {
@@ -89,6 +130,8 @@ final class AppModel: ObservableObject {
     }
 
     func runNow() {
+        guard canRun else { return }
+        guard allowExternalOperation() else { return }
         guard let id = selection else { return }
         let snapshot = configuration
         let paths = paths
@@ -106,6 +149,7 @@ final class AppModel: ObservableObject {
     }
 
     func checkCLI() {
+        guard allowExternalOperation() else { return }
         guard let profile = selectedProfile else { return }
         let path = configuration.containerPath
         begin("checking")
@@ -116,12 +160,14 @@ final class AppModel: ObservableObject {
                     try CleanupService().check(path, profiles: [profile])
                 }.value
                 output = "\(version)\n\n\(localizer.text("compatible"))"
+                outputTitleKey = "checkCLI"
                 statusKey = "checked"
             } catch { fail(error) }
         }
     }
 
     func showScheduleStatus() {
+        guard allowExternalOperation() else { return }
         guard let profile = selectedProfile else { return }
         let paths = paths
         begin("checking")
@@ -132,12 +178,18 @@ final class AppModel: ObservableObject {
                     try ScheduleManager(paths: paths).status(profile)
                 }.value
                 output = localizer.text("scheduleStatusHint") + "\n\n" + status
+                outputTitleKey = "scheduleStatus"
                 statusKey = "checked"
             } catch { fail(error) }
         }
     }
 
     func showLog(id: UUID) {
+        outputTitleKey = "showLog"
+        if isPreview {
+            output = localizer.text("noLog")
+            return
+        }
         let url = paths.log(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else {
             output = localizer.text("noLog")
@@ -148,6 +200,7 @@ final class AppModel: ObservableObject {
     }
 
     func openLogs() {
+        guard allowExternalOperation() else { return }
         do {
             try paths.prepare()
             guard NSWorkspace.shared.open(paths.logs) else {
@@ -159,6 +212,14 @@ final class AppModel: ObservableObject {
     private func begin(_ key: String) {
         busy = true
         statusKey = key
+    }
+
+    private func allowExternalOperation() -> Bool {
+        guard !isPreview else {
+            errorMessage = localizer.text("previewOnly")
+            return false
+        }
+        return true
     }
 
     private func fail(_ error: any Error) {

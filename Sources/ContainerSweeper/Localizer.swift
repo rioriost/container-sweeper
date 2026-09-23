@@ -2,8 +2,10 @@ import Foundation
 import SweeperCore
 
 struct Localizer {
+    var languageCode: String?
     var code: String {
-        Bundle.preferredLocalizations(from: ["en", "ja"], forPreferences: Locale.preferredLanguages).first ?? "en"
+        if let languageCode { return languageCode }
+        return Bundle.preferredLocalizations(from: ["en", "ja"], forPreferences: Locale.preferredLanguages).first ?? "en"
     }
 
     var locale: Locale { Locale(identifier: code) }
@@ -24,8 +26,16 @@ struct Localizer {
         profile.name.isEmpty ? text(profile.frequency == .daily ? "dailyProfile" : "weeklyProfile") : profile.name
     }
 
+    func actions(_ profile: CleanupProfile) -> String {
+        var actions: [String] = []
+        if profile.clean { actions.append(text("clean")) }
+        if profile.prune { actions.append(text("prune")) }
+        if profile.images != .none { actions.append(text(profile.images == .all ? "imageAll" : "imageDangling")) }
+        return actions.isEmpty ? text("noActions") : actions.joined(separator: " · ")
+    }
+
     func schedule(_ profile: CleanupProfile) -> String {
-        let time = String(format: "%02d:%02d", profile.hour, profile.minute)
+        let time = time(hour: profile.hour, minute: profile.minute)
         return profile.frequency == .daily
             ? "\(text("daily")) \(time)"
             : "\(text("weekly")) · \(text("weekday\(profile.weekday)")) \(time)"
@@ -34,6 +44,13 @@ struct Localizer {
     func schedule(_ group: ScheduleGroup) -> String {
         let days = group.weekdays.count == 7 ? text("daily")
             : group.weekdays.map { text("weekday\($0)") }.joined(separator: ", ")
-        return "\(days) \(String(format: "%02d:%02d", group.hour, group.minute))"
+        return "\(days) \(time(hour: group.hour, minute: group.minute))"
+    }
+
+    func time(hour: Int, minute: Int) -> String {
+        ScheduleClock.date(hour: hour, minute: minute).formatted(
+            Date.FormatStyle(date: .omitted, time: .shortened, locale: locale,
+                             calendar: ScheduleClock.calendar, timeZone: ScheduleClock.calendar.timeZone)
+        )
     }
 }

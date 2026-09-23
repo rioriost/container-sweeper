@@ -230,6 +230,26 @@ class ReleaseTests(unittest.TestCase):
                 release.update_cask(self.settings)
         self.assertEqual(target.read_text(), "user changes")
 
+    def test_packaged_icon_must_match_its_reference_and_release_source(self):
+        app = self.root / release.APP_NAME
+        resources = app / "Contents/Resources"
+        resources.mkdir(parents=True)
+        info = app / "Contents/Info.plist"
+        icon = resources / "AppIcon.icns"
+        source = self.root / "Packaging/AppIcon.icns"
+        source.write_bytes(b"icon fixture")
+        info.write_bytes(plistlib.dumps({"CFBundleIconFile": "AppIcon.icns"}))
+        with self.assertRaisesRegex(release.ReleaseError, "missing"):
+            release.verify_app_icon(app)
+        icon.write_bytes(source.read_bytes())
+        release.verify_app_icon(app)
+        icon.write_bytes(b"unexpected old icon")
+        with self.assertRaisesRegex(release.ReleaseError, "differs"):
+            release.verify_app_icon(app)
+        info.write_bytes(plistlib.dumps({"CFBundleIconFile": "Other.icns"}))
+        with self.assertRaisesRegex(release.ReleaseError, "reference"):
+            release.verify_app_icon(app)
+
 
 if __name__ == "__main__":
     unittest.main()

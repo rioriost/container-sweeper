@@ -3,86 +3,95 @@ import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var model: AppModel
-    @State private var confirmation: Confirmation?
-
-    private enum Confirmation: String, Identifiable {
-        case save, run, remove
-        var id: String { rawValue }
-    }
+    @State private var showCommands = false
+    @State private var showCLI = false
+    @State private var showHelp = false
 
     private var l: Localizer { model.localizer }
     private func t(_ key: String) -> String { l.text(key) }
 
     var body: some View {
-        NavigationSplitView {
-            VStack(alignment: .leading, spacing: 0) {
-                List(selection: $model.selection) {
-                    ForEach(model.configuration.profiles) { profile in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(l.profileName(profile)).font(.headline)
-                            Text(l.schedule(profile)).font(.caption).foregroundStyle(.secondary)
-                            Label(t(profile.enabled ? "enabled" : "disabled"),
-                                  systemImage: profile.enabled ? "clock.badge.checkmark" : "pause.circle")
-                                .font(.caption)
+        GeometryReader { geometry in
+            // Bound both native split columns to the window, including short localized forms.
+            NavigationSplitView {
+                sidebar
+                    .frame(height: geometry.size.height)
+                    .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
+            } detail: {
+                VStack(spacing: 0) {
+                    if model.loadFailed {
+                        ContentUnavailableView {
+                            Label(t("loadErrorTitle"), systemImage: "exclamationmark.triangle")
+                        } description: {
+                            Text(t("loadErrorHint"))
                         }
-                        .padding(.vertical, 6)
-                        .tag(profile.id)
-                    }
-                }
-                HStack {
-                    Button(action: model.addProfile) { Label(t("add"), systemImage: "plus") }
-                        .disabled(model.configuration.profiles.count >= 32)
-                    Spacer()
-                    Button(role: .destructive) { confirmation = .remove } label: {
-                        Image(systemName: "minus")
-                    }
-                    .help(t("remove"))
-                    .accessibilityLabel(t("remove"))
-                    .disabled(model.selection == nil)
-                }
-                .padding()
-                Text(t("sidebarHint")).font(.caption).foregroundStyle(.secondary).padding([.horizontal, .bottom])
-            }
-            .navigationTitle(t("profiles"))
-            .navigationSplitViewColumnWidth(min: 220, ideal: 240)
-        } detail: {
-            VStack(spacing: 0) {
-                Form {
-                    if let index = model.configuration.profiles.firstIndex(where: { $0.id == model.selection }) {
-                        ProfileEditor(profile: $model.configuration.profiles[index], localizer: l)
-                        Section(t("preview")) {
-                            Text(model.configuration.profiles[index].commandPreview.joined(separator: "\n"))
-                                .font(.system(.callout, design: .monospaced))
-                                .textSelection(.enabled)
-                            Text(t("orderHint")).font(.caption).foregroundStyle(.secondary)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    } else if let index = model.configuration.profiles.firstIndex(where: { $0.id == model.selection }) {
+                        profileHeader(model.configuration.profiles[index])
+                            .fixedSize(horizontal: false, vertical: true)
+                        Form {
+                            ProfileEditor(profile: $model.configuration.profiles[index], localizer: l)
+                            if model.configuration.profiles[index].enabled { groupedPreview }
+                            Section {
+                                DisclosureGroup(t("preview"), isExpanded: $showCommands) {
+                                    commandList(model.configuration.profiles[index])
+                                    hint("orderHint")
+                                }
+                            }
+                            connectionSection
+                            Section {
+                                DisclosureGroup(t("automationHelp"), isExpanded: $showHelp) {
+                                    hint("launchdHint")
+                                    hint("safetyHint")
+                                }
+                            }
                         }
-                        if model.configuration.profiles[index].enabled { groupedPreview }
+                        .formStyle(.grouped)
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                        .id(model.selection)
+                        .disabled(!model.canEdit)
                     } else {
-                        Section { Text(t("selectProfile")).foregroundStyle(.secondary) }
-                    }
-                    Section(t("cli")) {
-                        HStack {
-                            TextField(t("executable"), text: $model.configuration.containerPath)
-                                .textFieldStyle(.roundedBorder)
-                            Button(t("browse"), action: model.browse)
+                        ContentUnavailableView {
+                            Label(t(model.configuration.profiles.isEmpty ? "emptyTitle" : "profiles"), systemImage: "calendar.badge.clock")
+                        } description: {
+                            Text(t("selectProfile"))
+                        } actions: {
+                            Button(t("addProfile"), action: model.addProfile)
+                                .disabled(!model.canEdit || model.configuration.profiles.count >= 32)
                         }
-                        HStack {
-                            Button(t("checkCLI"), action: model.checkCLI).disabled(model.selection == nil)
-                            Text(t("cliHint")).font(.caption).foregroundStyle(.secondary)
-                        }
+                        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
                     }
-                    Section {
-                        Text(t("launchdHint")).font(.caption).foregroundStyle(.secondary)
-                        Text(t("safetyHint")).font(.caption).foregroundStyle(.secondary)
-                    }
+                    Divider()
+                    footer
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .formStyle(.grouped)
-                Divider()
-                footer
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                .frame(height: geometry.size.height)
+                .navigationTitle(model.loadFailed ? t("loadErrorTitle") : model.selectedProfile.map(l.profileName) ?? t("profiles"))
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .frame(minWidth: 860, minHeight: 640)
+        .toolbar {
+            ToolbarItemGroup {
+                Button(action: model.addProfile) { Label(t("addProfile"), systemImage: "plus") }
+                    .help(t("addProfile"))
+                    .disabled(!model.canEdit || model.configuration.profiles.count >= 32)
+                Menu {
+                    Button(t("showLog")) {
+                        if let id = model.selection { model.showLog(id: id) }
+                    }
+                    Button(t("scheduleStatus"), action: model.showScheduleStatus)
+                    Divider()
+                    Button(t("removeProfile"), role: .destructive) { model.confirmation = .remove }
+                } label: {
+                    Label(t("profileActions"), systemImage: "ellipsis.circle")
+                }
+                .accessibilityLabel(t("profileActions"))
+                .help(t("profileActions"))
+                .disabled(!model.canEdit || model.selection == nil)
             }
         }
-        .frame(minWidth: 900, minHeight: 740)
-        .disabled(model.busy || model.loadFailed)
         .alert(t("errorTitle"), isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
@@ -91,15 +100,13 @@ struct ContentView: View {
         } message: {
             Text(t(model.loadFailed ? "loadErrorHint" : "errorHint") + "\n\n" + (model.errorMessage ?? ""))
         }
-        .sheet(item: $confirmation) { value in
-            confirmationSheet(value)
-        }
+        .sheet(item: $model.confirmation) { confirmationSheet($0) }
         .sheet(isPresented: Binding(
             get: { model.output != nil },
             set: { if !$0 { model.output = nil } }
         )) {
             VStack(alignment: .leading, spacing: 16) {
-                Text(t("details")).font(.title2)
+                Text(t(model.outputTitleKey)).font(.title2.bold())
                 ScrollView {
                     Text(model.output ?? "")
                         .font(.system(.body, design: .monospaced))
@@ -107,13 +114,82 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 HStack {
-                    Button(t("openLogs"), action: model.openLogs)
+                    if model.outputTitleKey == "showLog" {
+                        Button(t("openLogs"), action: model.openLogs)
+                    }
                     Spacer()
-                    Button(t("close")) { model.output = nil }.keyboardShortcut(.defaultAction)
+                    Button(t("close")) { model.output = nil }.keyboardShortcut(.cancelAction)
                 }
             }
             .padding(24)
-            .frame(width: 720, height: 480)
+            .frame(width: 660, height: 440)
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            List(selection: $model.selection) {
+                Section(t("profiles")) {
+                    ForEach(model.loadFailed ? [] : model.configuration.profiles) { profile in
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: profile.enabled ? "calendar" : "pause.circle")
+                                .foregroundStyle(.tint)
+                                .font(.title3)
+                                .accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(l.profileName(profile)).font(.headline).lineLimit(2)
+                                Text(l.schedule(profile)).font(.subheadline)
+                                Text(t(profile.enabled ? "enabled" : "disabled"))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                        .tag(profile.id)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+            }
+            .frame(minHeight: 0, maxHeight: .infinity)
+            .disabled(!model.canEdit)
+            Divider()
+            Label(t("sidebarHint"), systemImage: "info.circle")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(16)
+        }
+    }
+
+    private func profileHeader(_ profile: CleanupProfile) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(l.profileName(profile)).font(.title2.bold()).textSelection(.enabled)
+            HStack(spacing: 16) {
+                Label(t(profile.enabled ? "enabled" : "disabled"),
+                      systemImage: profile.enabled ? "clock.badge.checkmark" : "pause.circle")
+                if profile.enabled { Text(l.schedule(profile)).monospacedDigit() }
+            }
+            .font(.subheadline).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20).padding(.vertical, 16)
+    }
+
+    private var connectionSection: some View {
+        Section {
+            DisclosureGroup(t("cli"), isExpanded: $showCLI) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(t("executable")).font(.subheadline)
+                    HStack {
+                        TextField(t("executable"), text: $model.configuration.containerPath)
+                            .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
+                            .accessibilityLabel(t("executable"))
+                        Button(t("browse"), action: model.browse)
+                    }
+                }
+                Button(t("checkCLI"), action: model.checkCLI)
+                    .disabled(model.selectedProfile?.hasActions != true)
+                hint("cliHint")
+            }
         }
     }
 
@@ -129,83 +205,102 @@ struct ContentView: View {
                 Section(t("mergedPreview")) {
                     ForEach(groups) { group in
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(l.schedule(group)).font(.headline)
+                            Label(l.schedule(group), systemImage: "calendar.badge.clock").font(.headline)
                             Text(group.profiles.map { l.profileName($0) }.joined(separator: " + "))
-                                .font(.caption).foregroundStyle(.secondary)
-                            Text(group.mergedProfile.commandPreview.joined(separator: "\n"))
-                                .font(.system(.callout, design: .monospaced))
-                                .textSelection(.enabled)
+                                .font(.subheadline).foregroundStyle(.secondary)
+                            Text(l.actions(group.mergedProfile)).font(.subheadline)
+                            DisclosureGroup(t("commands")) { commandList(group.mergedProfile) }
                         }
+                        .padding(.vertical, 4)
                     }
-                    Text(t("mergedHint")).font(.caption).foregroundStyle(.secondary)
+                    hint("mergedHint")
                 }
             }
-        case .failure(let error):
+        case .failure:
             Section(t("mergedPreview")) {
-                Text(error.localizedDescription).font(.caption).foregroundStyle(.red)
+                Label(t("invalidProfiles"), systemImage: "exclamationmark.circle")
+                    .font(.subheadline)
             }
+        }
+    }
+
+    private func hint(_ key: String) -> some View {
+        Text(t(key)).font(.subheadline).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func commandList(_ profile: CleanupProfile) -> some View {
+        if profile.hasActions {
+            Text(profile.commandPreview.joined(separator: "\n"))
+                .font(.system(.callout, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Label(t("noActions"), systemImage: "exclamationmark.circle")
         }
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                if model.busy { ProgressView().controlSize(.small) }
-                Text(t(model.statusKey)).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                if model.busy { ProgressView().controlSize(.small).accessibilityLabel(t(model.statusKey)) }
+                Label(t(model.loadFailed ? "loadErrorTitle" : model.dirty ? "unsaved" : "upToDate"),
+                      systemImage: model.loadFailed ? "exclamationmark.triangle" : model.dirty ? "pencil.circle" : "checkmark.circle")
                 Spacer()
-                Text(t(model.dirty ? "unsaved" : "upToDate"))
-                    .font(.caption).foregroundStyle(model.dirty ? Color.orange : Color.secondary)
+                if model.statusKey != "ready" {
+                    Text(t(model.statusKey)).foregroundStyle(.secondary)
+                }
+            }
+            .font(.subheadline)
+            if !model.canSave && model.canEdit {
+                Label(t("invalidProfiles"), systemImage: "exclamationmark.circle")
+                    .font(.caption)
             }
             HStack {
                 Button(t("showLog")) {
                     if let id = model.selection { model.showLog(id: id) }
-                }.disabled(model.selection == nil)
-                Button(t("scheduleStatus"), action: model.showScheduleStatus).disabled(model.selection == nil)
+                }.disabled(!model.canEdit || model.selection == nil)
                 Spacer()
-                Button(t("runNow")) { confirmation = .run }.disabled(model.selection == nil)
-                Button(t("save")) {
-                    if model.configuration.profiles.contains(where: { $0.enabled && $0.isDestructive }) {
-                        confirmation = .save
-                    } else {
-                        model.save()
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut("s", modifiers: .command)
+                Button(t("runNow"), action: model.requestRun).disabled(!model.canRun)
+                Button(t("save"), action: model.requestSave)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!model.canSave)
             }
         }
-        .padding()
+        .padding(16)
     }
 
-    private func confirmationSheet(_ value: Confirmation) -> some View {
+    private func confirmationSheet(_ value: AppModel.Confirmation) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(t(value == .remove ? "removeTitle" : "confirmTitle")).font(.title2.bold())
+            Text(t(value == .remove ? "removeTitle" : value == .save ? "saveTitle" : "runTitle"))
+                .font(.title2.bold())
             Text(t(value == .save ? "saveConfirmation" : value == .run ? "runConfirmation" : "removeConfirmation"))
-            if value != .remove {
-                if value == .save {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ForEach(model.configuration.profiles.filter { $0.enabled && $0.isDestructive }) { profile in
-                                Text(l.profileName(profile) + " — " + l.schedule(profile)).bold()
-                                Text(profile.commandPreview.joined(separator: "\n"))
-                                    .font(.system(.callout, design: .monospaced))
-                            }
+                .fixedSize(horizontal: false, vertical: true)
+            if value == .save {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(model.configuration.profiles.filter { $0.enabled && $0.isDestructive }) { profile in
+                            confirmationProfile(profile)
                         }
-                    }
-                    .frame(maxHeight: 240)
-                } else if let profile = model.selectedProfile {
-                    Text(profile.commandPreview.joined(separator: "\n"))
-                        .font(.system(.callout, design: .monospaced))
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.frame(maxHeight: 240)
+            } else if let profile = model.selectedProfile {
+                if value == .remove {
+                    Text(l.profileName(profile)).font(.headline)
+                } else {
+                    confirmationProfile(profile)
                 }
-                if value == .save || model.selectedProfile?.isDestructive == true {
-                    Text(t("destructiveWarning")).foregroundStyle(.orange)
-                }
+            }
+            if value == .save || (value == .run && model.selectedProfile?.isDestructive == true) {
+                Label(t("destructiveWarning"), systemImage: "exclamationmark.triangle")
+                    .font(.subheadline).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Spacer()
-                Button(t("cancel")) { confirmation = nil }.keyboardShortcut(.cancelAction)
-                Button(t(value == .save ? "save" : value == .run ? "runNow" : "remove")) {
-                    confirmation = nil
+                Button(t("cancel")) { model.confirmation = nil }.keyboardShortcut(.cancelAction)
+                Button(t(value == .save ? "save" : value == .run ? "runNow" : "removeProfile")) {
+                    model.confirmation = nil
                     switch value {
                     case .save: model.save()
                     case .run: model.runNow()
@@ -218,12 +313,29 @@ struct ContentView: View {
         .padding(24)
         .frame(width: 560)
     }
+
+    private func confirmationProfile(_ profile: CleanupProfile) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(l.profileName(profile)).font(.headline)
+            Text(l.actions(profile)).font(.subheadline)
+            if model.confirmation == .save { Text(l.schedule(profile)).foregroundStyle(.secondary) }
+            commandList(profile)
+        }
+    }
 }
 
 private struct ProfileEditor: View {
     @Binding var profile: CleanupProfile
     let localizer: Localizer
     private func t(_ key: String) -> String { localizer.text(key) }
+
+    private var time: Binding<Date> {
+        Binding(get: { ScheduleClock.date(hour: profile.hour, minute: profile.minute) }, set: {
+            let components = ScheduleClock.components($0)
+            profile.hour = components.hour
+            profile.minute = components.minute
+        })
+    }
 
     var body: some View {
         Section(t("schedule")) {
@@ -239,33 +351,42 @@ private struct ProfileEditor: View {
                     ForEach(0..<7) { day in Text(t("weekday\(day)")).tag(day) }
                 }
             }
-            HStack {
-                Text(t("time"))
-                Spacer()
-                Picker(t("hour"), selection: $profile.hour) {
-                    ForEach(0..<24) { hour in Text(String(format: "%02d", hour)).tag(hour) }
-                }.frame(width: 120)
-                Picker(t("minute"), selection: $profile.minute) {
-                    ForEach(0..<60) { minute in Text(String(format: "%02d", minute)).tag(minute) }
-                }.frame(width: 130)
-            }
-            Text(t("timeHint")).font(.caption).foregroundStyle(.secondary)
+            DatePicker(t("time"), selection: time, displayedComponents: .hourAndMinute)
+                .datePickerStyle(.field)
+                .environment(\.timeZone, ScheduleClock.calendar.timeZone)
+                .environment(\.calendar, ScheduleClock.calendar)
+                .accessibilityValue(localizer.time(hour: profile.hour, minute: profile.minute))
+            Text(t("timeHint")).font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         Section(t("actions")) {
-            Toggle(t("clean"), isOn: $profile.clean)
-            Text(t("cleanHint")).font(.caption).foregroundStyle(.secondary)
+            Toggle(isOn: $profile.clean) {
+                Text(t("clean"))
+                Text(t("cleanHint"))
+            }
+            .accessibilityLabel(t("clean"))
+            .accessibilityHint(t("cleanHint"))
+            Toggle(isOn: $profile.prune) {
+                Text(t("prune"))
+                Text(t("pruneHint"))
+            }
+            .accessibilityLabel(t("prune"))
+            .accessibilityHint(t("pruneHint"))
             Picker(t("imageCleanup"), selection: $profile.images) {
                 Text(t("imageNone")).tag(ImageCleanup.none)
                 Text(t("imageDangling")).tag(ImageCleanup.dangling)
                 Text(t("imageAll")).tag(ImageCleanup.all)
             }
-            Toggle(t("prune"), isOn: $profile.prune)
+            Text(t(profile.images == .all ? "imageAllHint" : profile.images == .dangling ? "imageDanglingHint" : "imageNoneHint"))
+                .font(.subheadline).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             if profile.isDestructive {
-                Label(t("destructiveWarning"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
+                Label(t("destructiveWarning"), systemImage: "exclamationmark.triangle")
+                    .font(.subheadline).fixedSize(horizontal: false, vertical: true)
             }
             if !profile.hasActions {
-                Text(t("noActions")).font(.caption).foregroundStyle(.red)
+                Label(t("noActions"), systemImage: "exclamationmark.circle")
+                    .font(.subheadline)
             }
         }
     }

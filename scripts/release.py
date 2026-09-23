@@ -159,6 +159,7 @@ def build_bundle(directory):
     shutil.copy2(binary_directory / "ContainerSweeper", app / "Contents/MacOS/ContainerSweeper")
     shutil.copy2(binary_directory / "ContainerSweeper", app / RUNNER)
     shutil.copy2(ROOT / "Packaging/Info.plist", app / "Contents/Info.plist")
+    shutil.copy2(ROOT / "Packaging/AppIcon.icns", app / "Contents/Resources/AppIcon.icns")
     shutil.copy2(ROOT / "LICENSE", app / "Contents/Resources/LICENSE")
     run(["/usr/bin/ditto", binary_directory / RESOURCE_BUNDLE, app / "Contents/Resources" / RESOURCE_BUNDLE])
     return app
@@ -313,6 +314,16 @@ end
 '''
 
 
+def verify_app_icon(app):
+    with (app / "Contents/Info.plist").open("rb") as handle:
+        info = plistlib.load(handle)
+    if info.get("CFBundleIconFile") != "AppIcon.icns":
+        raise ReleaseError("The app must reference its packaged AppIcon.icns.")
+    icon = app / "Contents/Resources/AppIcon.icns"
+    if not icon.is_file() or sha256(icon) != sha256(ROOT / "Packaging/AppIcon.icns"):
+        raise ReleaseError("The packaged app icon is missing or differs from the release source.")
+
+
 def verify_archive(archive, settings):
     with staging() as directory:
         run(["/usr/bin/ditto", "-x", "-k", archive, directory])
@@ -326,6 +337,7 @@ def verify_archive(archive, settings):
                 raise ReleaseError(f"Packaged {key} does not match Packaging/Info.plist.")
         if not (app / "Contents/Resources/LICENSE").is_file():
             raise ReleaseError("The distributed app is missing its MIT license.")
+        verify_app_icon(app)
 
 
 def make_release(settings):
