@@ -13,8 +13,8 @@ parser.add_argument('--light', action='store_true')
 parser.add_argument('--compact', action='store_true')
 parser.add_argument('--state', choices=['default', 'merged', 'empty', 'destructive', 'load-error', 'busy'], default='default')
 args = parser.parse_args()
-subprocess.run(['swift', 'build'], cwd=ROOT, check=True)
-bin_dir = Path(subprocess.check_output(['swift', 'build', '--show-bin-path'], cwd=ROOT, text=True).strip())
+subprocess.run(['swift', 'build', '--arch', 'arm64'], cwd=ROOT, check=True)
+bin_dir = Path(subprocess.check_output(['swift', 'build', '--arch', 'arm64', '--show-bin-path'], cwd=ROOT, text=True).strip())
 variant = f"{'en' if args.english else 'ja'}-{'light' if args.light else 'dark'}-{args.state}"
 if args.compact:
     variant += '-compact'

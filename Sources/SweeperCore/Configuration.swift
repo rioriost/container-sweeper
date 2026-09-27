@@ -1,3 +1,7 @@
+#if !arch(arm64)
+#error("Container Sweeper supports only arm64 (aarch64). Build with --arch arm64.")
+#endif
+
 import Foundation
 
 public enum Frequency: String, Codable, CaseIterable, Sendable {

@@ -54,6 +54,15 @@ Selected commands are checked before cleanup or schedule registration.
 The build produces an ad-hoc signed `dist/Container Sweeper.app`, which you can
 move to `/Applications` or `~/Applications`. This local build is not notarized.
 
+ビルド対象は **arm64（aarch64）のみ**です。アプリ・テスト・GUIプレビューは
+`--arch arm64` を指定します。SwiftPM を直接使う場合も、共有コアのコンパイル時チェックが
+非arm64ターゲットを拒否します。Intel（x86_64）および Universal バイナリは非対応です。
+
+The only supported build target is **arm64 (aarch64)**. App, test, and GUI preview
+builds explicitly select `--arch arm64`. A compile-time check in the shared core
+also rejects non-arm64 targets when invoking SwiftPM directly. Intel (x86_64)
+and Universal binaries are not supported.
+
 ## 設定例 / Example configuration
 
 | プロファイル / Profile | 頻度 / Schedule | 操作 / Actions |
@@ -199,7 +208,7 @@ you can remove the app and its dedicated Application Support/log folders.
 
 ```sh
 make test
-swift run ContainerSweeper
+swift run --arch arm64 ContainerSweeper
 ```
 
 Tests use an isolated temporary home and a fake executor for all Container and

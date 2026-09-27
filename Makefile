@@ -27,7 +27,7 @@ run: app
 	open "dist/Container Sweeper.app"
 
 test:
-	swift test
+	swift test --arch arm64
 	$(PYTHON) -m unittest discover -s Tests/ReleaseTests -v
 
 signing-info signing-check notary-credentials release-check signed-app release verify-release cask publish update-cask:
