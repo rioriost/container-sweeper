@@ -36,7 +36,7 @@ the Container service automatically.
 
 ビルドには Apple Silicon Mac・macOS 14 以降・Swift 6 以降のツールチェーン（Xcode）・
 Python 3.9 以降・`make` が必要です。実際の清掃には Apple Container の
-OS・ハードウェア要件も満たす必要があります。CLI 1.4.1 の全操作に対応しています。
+OS・ハードウェア要件も満たす必要があります。CLI 1.5.0 の全操作に対応しています。
 
 ```sh
 make test
@@ -49,7 +49,7 @@ open "dist/Container Sweeper.app"
 
 Building requires an Apple Silicon Mac, macOS 14+, Swift 6 (Xcode), Python 3.9+,
 and `make`. Running cleanup also requires a supported Apple Container environment.
-CLI 1.4.1 supports all provided actions; older versions may not support `clean`.
+CLI 1.5.0 supports all provided actions; older versions may not support `clean`.
 Selected commands are checked before cleanup or schedule registration.
 The build produces an ad-hoc signed `dist/Container Sweeper.app`, which you can
 move to `/Applications` or `~/Applications`. This local build is not notarized.
@@ -219,7 +219,7 @@ deduplication, legacy-job migration, registration rollback, and log rotation.
 Process-executor tests run only harmless system utilities.
 
 Official command reference:
-<https://github.com/apple/container/blob/1.4.1/docs/command-reference.md>
+<https://github.com/apple/container/blob/1.5.0/docs/command-reference.md>
 
 ## ライセンス / License
 
